@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Juego Educativo HTA - Personal Sanitario</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-pink-200 min-h-screen flex items-center justify-center">
+
+<!-- Ranking top 10 -->
+<div class="fixed top-4 right-4 bg-white p-4 rounded-xl shadow-xl w-64 text-sm">
+  <h3 class="font-bold mb-2">🏆 Ranking</h3>
+  <ul id="ranking"></ul>
+</div>
+
+<!-- Tarjeta central -->
+<div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl text-center">
+
+  <!-- Pantalla inicio -->
+  <div id="inicio">
+    <div class="text-6xl mb-4">😊</div>
+    <h1 class="text-xl font-bold mb-4">¡Hola! Contesta a estas preguntas y aprendamos juntos</h1>
+    <input id="nombre" class="border p-2 rounded w-full mb-4" placeholder="Escribe tu nombre">
+    <button onclick="comenzar()" class="bg-blue-300 rounded-full px-6 py-2 hover:bg-yellow-400 hover:text-white">
+      Comenzar
+    </button>
+  </div>
+
+  <!-- Pantalla juego -->
+  <div id="juego" class="hidden">
+    <div id="emoji" class="text-6xl mb-2">🙂</div>
+    <div id="nivelTitulo" class="font-bold mb-2"></div>
+    <div id="puntuacion" class="mb-2">Puntos: 100</div>
+    <div id="contador" class="mb-2 font-bold">Tiempo restante: 120 s</div>
+    <p id="pregunta" class="font-semibold mb-4"></p>
+    <div id="opciones" class="space-y-2"></div>
+    <div id="feedback" class="mt-4 font-semibold"></div>
+  </div>
+
+  <!-- Pantalla final -->
+  <div id="final" class="hidden">
+    <div class="text-6xl mb-4">🎉</div>
+    <p id="mensajeFinal" class="mb-4"></p>
+    <button onclick="reiniciar()" class="bg-blue-300 rounded-full px-6 py-2 hover:bg-yellow-400 hover:text-white">
+      Volver a jugar
+    </button>
+  </div>
+</div>
+
+<script>
+/* ==================== VARIABLES ==================== */
+let jugador = "";
+let puntos = 100;
+let preguntaActual = 0;
+let nivelActual = 0;
+let tiempoRestante = 120;
+let intervaloTiempo;
+
+/* ==================== NIVELES Y PREGUNTAS ==================== */
+const niveles = [
+  /* Nivel 0 */
+  {
+    titulo: "Nivel 0 – Búsqueda bibliográfica HTA",
+    preguntas: [
+      {p:"Para conocer la prevalencia real de HTA en población, reviso:", o:["Bases de datos científicas","Redes sociales","Opiniones personales"], c:0, fc:"Correcto, PubMed y otras bases son fiables.", fi:"Opiniones personales o redes sociales no son válidas."},
+      {p:"Diseño típico de estudios de prevalencia:", o:["Transversal","Ensayo clínico","Caso-control"], c:0, fc:"Correcto, mide frecuencia en un momento dado.", fi:"Otros diseños son para otras preguntas."},
+      {p:"Comparo mis resultados con la bibliografía para:", o:["Interpretar datos","Modificar resultados","Evitar análisis"], c:0, fc:"Exacto, ayuda a contextualizar.", fi:"Modificar datos no es correcto."},
+      {p:"La definición de HTA influye en:", o:["La prevalencia reportada","Nada","Solo legales"], c:0, fc:"Correcto, diferentes definiciones cambian resultados.", fi:"Influye directamente en resultados."},
+      {p:"Una búsqueda reproducible debe:", o:["Describir estrategia","Buscar rápido","Usar intuición"], c:0, fc:"Correcto, permite evaluación externa.", fi:"Intuición no es método científico."}
+    ]
+  },
+  /* Nivel 1 */
+  {
+    titulo: "Nivel 1 – Prevalencia en consulta",
+    preguntas: [
+      {p:"Reviso 200 pacientes y 58 tienen HTA. Prevalencia:", o:["29%","58%","71%"], c:0, fc:"Correcto, 58/200 = 29%.", fi:"Prevalencia = casos/total."},
+      {p:"La media de la tensión arterial sistólica de mis pacientes me permite:", o:["Analizar la muestra","Diagnosticar automáticamente","Cambiar fármacos"], c:0, fc:"Correcto, media describe la muestra.", fi:"No diagnostica individualmente."},
+      {p:"La prevalencia indica:", o:["Proporción de pacientes con HTA","Causa de HTA","Pronóstico exacto"], c:0, fc:"Correcto, frecuencia de la condición.", fi:"No indica causalidad."},
+      {p:"Para extrapolar datos a la población, necesito:", o:["Muestra representativa","Muchos pacientes","Que todos tengan HTA"], c:0, fc:"Correcto, representatividad es clave.", fi:"Solo tamaño no basta."},
+      {p:"Si hay registros faltantes de TA:", o:["La prevalencia puede subestimarse","Aumenta","No cambia"], c:0, fc:"Correcto, falta de datos afecta resultados.", fi:"Siempre afecta a la validez."}
+    ]
+  },
+  /* Nivel 2 */
+  {
+    titulo: "Nivel 2 – Estadística descriptiva",
+    preguntas: [
+      {p:"Calculo la media de PAD para:", o:["Describir la muestra","Diagnosticar","Comparar tratamientos"], c:0, fc:"Correcto, media describe la muestra.", fi:"No sirve para diagnóstico."},
+      {p:"Desviación estándar indica:", o:["Dispersión","Valor central","Frecuencia"], c:0, fc:"Correcto, mide variabilidad.", fi:"No mide tendencia central."},
+      {p:"Mediana es útil porque:", o:["No afecta extremos","Siempre mayor que media","Es igual a moda"], c:0, fc:"Correcto, complementa la media.", fi:"Cada medida tiene un uso."},
+      {p:"Rango intercuartílico describe:", o:["Dispersión central","Valor máximo","Promedio"], c:0, fc:"Correcto, valores centrales 50% datos.", fi:"No es promedio ni máximo."},
+      {p:"Nivel Comisión Formación:", o:["Interpretar descriptiva","Memorizar","Suerte"], c:0, fc:"Correcto, aplica a práctica clínica.", fi:"No es azar."}
+    ]
+  },
+  /* Nivel 3 */
+  {
+    titulo: "Nivel 3 – Inferencia poblacional",
+    preguntas: [
+      {p:"IC 95% para media PAD: 77,49–90,51. Valor referencia 74,4 mmHg. ¿Compatible?", o:["Es compatible","No hay diferencias","Hay diferencia estadísticamente significativa"], c:2, fc:"Correcto, valor fuera del IC → diferencia significativa.", fi:"Si está fuera del IC, hay diferencia."},
+      {p:"p-valor 0,0087 indica:", o:["Significativo","No significativo","Error"], c:0, fc:"Correcto, p < 0,05 → significativo.", fi:"Indica evidencia estadística."},
+      {p:"Si IC incluye valor referencia:", o:["Compatible","Diferente","No sé"], c:0, fc:"Correcto, compatible con valor poblacional.", fi:"No hay diferencia estadística."},
+      {p:"Inferencia sobre proporción de HTA en muestra:", o:["Proporción válida para población","Error","No útil"], c:0, fc:"Correcto, permite estimar frecuencia poblacional.", fi:"No es inválida."},
+      {p:"Valor 74,4 mmHg no está dentro del IC 95 %. Concluyo:", o:["Es compatible","No hay diferencias","Hay diferencia estadísticamente significativa"], c:2, fc:"Correcto, diferencia significativa.", fi:"Valor fuera del IC → diferencia estadística."}
+    ]
+  },
+  /* Nivel 4 */
+  {
+    titulo: "Nivel 4 – Asociación educación sanitaria e HTA",
+    preguntas: [
+      {p:"Observando la tabla 2x2: más HTA en:", o:["Con educación","Sin educación","Igual"], c:1, fc:"Correcto, hay más HTA sin educación.", fi:"Observa distribución."},
+      {p:"Prueba estadística adecuada:", o:["t de Student","Correlación","Chi-cuadrado"], c:2, fc:"Correcto, χ² analiza cualitativas.", fi:"t se usa para medias."},
+      {p:"χ²=8,60; p=0,003. ¿Conclusión?", o:["Causalidad","Asociación significativa","No hay relación"], c:1, fc:"Correcto, asociación estadística.", fi:"Asociación ≠ causalidad."},
+      {p:"Condición validez:", o:["Muestra aleatoria y definición clara","Elegir solo sin HTA","Datos otro hospital"], c:0, fc:"Correcto, representa adecuadamente la población.", fi:"Sin representatividad no sirve."},
+      {p:"Nivel Comisión Formación:", o:["Analizar asociación","Solo fórmulas","Memorizar"], c:0, fc:"Correcto, aplica inferencia real.", fi:"No memorizar."}
+    ]
+  },
+  /* Nivel 5 */
+  {
+    titulo: "Nivel 5 – Aplicación guías prácticas",
+    preguntas: [
+      {p:"Conocer prevalencia HTA me permite:", o:["Planificar educación","Cambiar fármacos","Diagnóstico automático"], c:0, fc:"Correcto, facilita planificación.", fi:"No sustituye valoración clínica."},
+      {p:"Aplicación guías mejora:", o:["Calidad de cuidados","Burocracia","Carga laboral"], c:0, fc:"Correcto, basada en evidencia.", fi:"No aumenta burocracia."},
+      {p:"Decisión en consulta basada en evidencia:", o:["Aplicar recomendaciones","Ignorar guías","Suerte"], c:0, fc:"Correcto, guías apoyan práctica clínica.", fi:"No es azar."},
+      {p:"Evaluar efectividad intervención:", o:["Medir resultados","Adivinar","Solo opinión"], c:0, fc:"Correcto, datos objetivos.", fi:"Opinión no es evidencia."},
+      {p:"Nivel Comisión Formación:", o:["Revisión guías","Memorizar","Suerte"], c:0, fc:"Correcto, fomenta evidencia.", fi:"No memorizar."}
+    ]
+  }
+];
+
+/* ==================== FUNCIONES ==================== */
+function comenzar() {
+  jugador = document.getElementById("nombre").value.trim();
+  if (!jugador) return alert("Introduce tu nombre");
+
+  const progreso = JSON.parse(localStorage.getItem("progreso_" + jugador));
+  if (progreso) {
+    puntos = progreso.puntos;
+    preguntaActual = progreso.preguntaActual;
+    nivelActual = progreso.nivelActual;
+  } else {
+    puntos = 100; preguntaActual = 0; nivelActual = 0;
+  }
+
+  let jugadores = JSON.parse(localStorage.getItem("jugadores")) || [];
+  if (jugadores.includes(jugador) && !progreso) {
+    return alert("Este jugador ya completó el juego. Solo se permite un intento.");
+  } else if (!progreso) {
+    jugadores.push(jugador);
+    localStorage.setItem("jugadores", JSON.stringify(jugadores));
+  }
+
+  document.getElementById("inicio").classList.add("hidden");
+  document.getElementById("juego").classList.remove("hidden");
+  tiempoRestante = 120;
+  iniciarContador();
+  cargarPregunta();
+}
+
+function iniciarContador() {
+  document.getElementById("contador").innerText = "Tiempo restante: " + tiempoRestante + " s";
+  clearInterval(intervaloTiempo);
+  intervaloTiempo = setInterval(() => {
+    tiempoRestante--;
+    document.getElementById("contador").innerText = "Tiempo restante: " + tiempoRestante + " s";
+    if (tiempoRestante <= 0) {
+      clearInterval(intervaloTiempo);
+      responder(-1);
+    }
+  }, 1000);
+}
+
+function cargarPregunta() {
+  if (nivelActual >= niveles.length) return finalizar();
+  const nivel = niveles[nivelActual];
+  if (preguntaActual >= nivel.preguntas.length) { nivelActual++; preguntaActual=0; tiempoRestante=120; iniciarContador(); cargarPregunta(); return; }
+
+  const q = nivel.preguntas[preguntaActual];
+  document.getElementById("nivelTitulo").innerText = nivel.titulo;
+  document.getElementById("pregunta").innerText = q.p;
+  document.getElementById("feedback").innerText = "";
+  document.getElementById("puntuacion").innerText = "Puntos: " + puntos;
+  actualizarEmoji();
+
+  const cont = document.getElementById("opciones");
+  cont.innerHTML = "";
+  let indices = [0,1,2];
+  indices.sort(() => Math.random()-0.5);
+  indices.forEach(i => {
+    const btn = document.createElement("button");
+    btn.innerText = q.o[i];
+    btn.className = "block w-full bg-blue-200 rounded-full px-4 py-2 hover:bg-green-500 hover:text-white";
+    btn.onclick = () => responder(i);
+    cont.appendChild(btn);
+  });
+}
+
+function responder(i) {
+  clearInterval(intervaloTiempo);
+  const nivel = niveles[nivelActual];
+  const q = nivel.preguntas[preguntaActual];
+  const fb = document.getElementById("feedback");
+
+  let puntosPregunta = Math.max(1, Math.floor((tiempoRestante/120)*10));
+  if (i === q.c) { puntos += puntosPregunta; fb.innerText = "✅ " + q.fc; }
+  else { puntos -= 5; fb.innerText = "❌ " + q.fi; }
+
+  localStorage.setItem("progreso_" + jugador, JSON.stringify({ puntos, preguntaActual: preguntaActual+1, nivelActual }));
+
+  setTimeout(() => {
+    preguntaActual++;
+    tiempoRestante=120;
+    iniciarContador();
+    cargarPregunta();
+  }, 1200);
+}
+
+function actualizarEmoji() {
+  const e = document.getElementById("emoji");
+  if (puntos >= 120) e.innerText = "🤩";
+  else if (puntos >= 80) e.innerText = "🙂";
+  else e.innerText = "😢";
+}
+
+function finalizar() {
+  clearInterval(intervaloTiempo);
+  localStorage.removeItem("progreso_" + jugador);
+
+  document.getElementById("juego").classList.add("hidden");
+  document.getElementById("final").classList.remove("hidden");
+  document.getElementById("mensajeFinal").innerText = `${jugador}, tu puntuación final es ${puntos}`;
+
+  let r = JSON.parse(localStorage.getItem("ranking")) || [];
+  r.unshift({ nombre: jugador, puntos });
+  r = r.slice(0, 10);
+  localStorage.setItem("ranking", JSON.stringify(r));
+  mostrarRanking();
+}
+
+function mostrarRanking() {
+  const ul = document.getElementById("ranking");
+  ul.innerHTML = "";
+  (JSON.parse(localStorage.getItem("ranking")) || []).forEach(e => {
+    ul.innerHTML += `<li>${e.nombre}: ${e.puntos}</li>`;
+  });
+}
+
+function reiniciar() { location.reload(); }
+
+mostrarRanking();
+</script>
+</body>
+</html>
